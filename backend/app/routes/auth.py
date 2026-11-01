@@ -33,14 +33,22 @@ class UserResponse(BaseModel):
 
 @router.post("/register", response_model=TokenResponse)
 def register(req: RegisterRequest, db: Session = Depends(get_db)):
-    if db.query(User).filter(User.email == req.email).first():
+    email = (req.email or "").strip().lower()
+    username = (req.username or "").strip()
+    if "@" not in email:
+        raise HTTPException(400, "A valid email is required")
+    if len(username) < 3:
+        raise HTTPException(400, "Username must be at least 3 characters")
+    if len(req.password or "") < 8:
+        raise HTTPException(400, "Password must be at least 8 characters")
+    if db.query(User).filter(User.email == email).first():
         raise HTTPException(400, "Email already registered")
-    if db.query(User).filter(User.username == req.username).first():
+    if db.query(User).filter(User.username == username).first():
         raise HTTPException(400, "Username taken")
 
     user = User(
-        email=req.email,
-        username=req.username,
+        email=email,
+        username=username,
         full_name=req.full_name,
         hashed_password=hash_password(req.password),
     )
@@ -57,8 +65,10 @@ def register(req: RegisterRequest, db: Session = Depends(get_db)):
 
 @router.post("/login", response_model=TokenResponse)
 def login(form: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.email == form.username).first()
-    if not user or not verify_password(form.password, user.hashed_password):
+    email = (form.username or "").strip().lower()
+    user = db.query(User).filter(User.email == email).first()
+    # GitHub-only accounts have no password hash; they must use the OAuth flow.
+    if not user or not user.hashed_password or not verify_password(form.password, user.hashed_password):
         raise HTTPException(401, "Invalid credentials")
 
     token = create_token(user.id)

@@ -1,24 +1,36 @@
 from datetime import datetime, timedelta, timezone
+
+import bcrypt
 import jwt
-from passlib.context import CryptContext
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
+
 from app.config import get_settings
 from app.database import get_db
 from app.models.user import User
 
 settings = get_settings()
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
+
+# bcrypt only reads the first 72 bytes; truncate explicitly instead of letting
+# passlib/bcrypt raise at runtime.
+BCRYPT_MAX_BYTES = 72
+
+
+def _prepare(password: str) -> bytes:
+    return (password or "").encode("utf-8")[:BCRYPT_MAX_BYTES]
 
 
 def hash_password(password: str) -> str:
-    return pwd_context.hash(password)
+    return bcrypt.hashpw(_prepare(password), bcrypt.gensalt()).decode("utf-8")
 
 
 def verify_password(plain: str, hashed: str) -> bool:
-    return pwd_context.verify(plain, hashed)
+    try:
+        return bcrypt.checkpw(_prepare(plain), hashed.encode("utf-8"))
+    except (ValueError, TypeError):
+        return False
 
 
 def create_token(user_id: int) -> str:
