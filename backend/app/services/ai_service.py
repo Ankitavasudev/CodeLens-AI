@@ -1,9 +1,29 @@
 import json
+import os
+
+from fastapi import HTTPException
 from openai import AsyncOpenAI
+
 from app.config import get_settings
 
 settings = get_settings()
-client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+
+_client: AsyncOpenAI | None = None
+
+
+def get_client() -> AsyncOpenAI:
+    """Build the OpenAI client on first use, so importing the app never needs a key."""
+    global _client
+    if _client is not None:
+        return _client
+    api_key = os.getenv("OPENAI_API_KEY") or settings.OPENAI_API_KEY
+    if not api_key:
+        raise HTTPException(
+            status_code=503,
+            detail="OPENAI_API_KEY is not configured. Set it in backend/.env to use the review endpoints.",
+        )
+    _client = AsyncOpenAI(api_key=api_key)
+    return _client
 
 REVIEW_SYSTEM_PROMPT = """You are CodeLens AI, an expert code reviewer. Analyze code and provide structured feedback.
 
@@ -77,7 +97,7 @@ Return valid JSON:
 
 
 async def review_code(code: str, language: str = "python") -> dict:
-    response = await client.chat.completions.create(
+    response = await get_client().chat.completions.create(
         model=settings.OPENAI_MODEL,
         messages=[
             {"role": "system", "content": REVIEW_SYSTEM_PROMPT},
@@ -90,7 +110,7 @@ async def review_code(code: str, language: str = "python") -> dict:
 
 
 async def explain_code(code: str, language: str = "python") -> dict:
-    response = await client.chat.completions.create(
+    response = await get_client().chat.completions.create(
         model=settings.OPENAI_MODEL,
         messages=[
             {"role": "system", "content": EXPLAIN_SYSTEM_PROMPT},
@@ -103,7 +123,7 @@ async def explain_code(code: str, language: str = "python") -> dict:
 
 
 async def predict_bugs(code: str, language: str = "python") -> dict:
-    response = await client.chat.completions.create(
+    response = await get_client().chat.completions.create(
         model=settings.OPENAI_MODEL,
         messages=[
             {"role": "system", "content": BUG_PREDICT_SYSTEM_PROMPT},
@@ -116,7 +136,7 @@ async def predict_bugs(code: str, language: str = "python") -> dict:
 
 
 async def chat_with_code(code: str, question: str, language: str = "python") -> str:
-    response = await client.chat.completions.create(
+    response = await get_client().chat.completions.create(
         model=settings.OPENAI_MODEL,
         messages=[
             {"role": "system", "content": "You are CodeLens AI. Answer questions about the provided code. Be concise and helpful."},

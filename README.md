@@ -10,7 +10,7 @@
 <img src="https://img.shields.io/badge/Python%203.11-3776AB?style=flat-square&logo=python&logoColor=white" />
 <img src="https://img.shields.io/badge/React%2018-20232A?style=flat-square&logo=react&logoColor=61DAFB" />
 <img src="https://img.shields.io/badge/Docker-2496ED?style=flat-square&logo=docker&logoColor=white" />
-<img src="https://img.shields.io/badge/tests-30%20passing-3FB950?style=flat-square" />
+<img src="https://img.shields.io/badge/tests-31%20passing-3FB950?style=flat-square" />
 
 </div>
 
@@ -100,11 +100,14 @@ curl -s -X POST localhost:8000/api/analyze \
 
 ```bash
 cd backend
-pytest -q          # 30 tests, no network, no API key
+pytest -q          # 31 tests, no network, no API key
 ```
 
 - `tests/test_core.py` — validation bounds, mode fallback, prompt construction, JSON recovery from fenced/prefixed model output, snippet store TTL and eviction.
-- `tests/test_api.py` — every endpoint, with the OpenAI client stubbed: the 503 path, the 400 path, the 502 path, share/snippet round-trip, register → login → `/me`, duplicate and weak-password rejection, and that protected routes really are protected.
+- `tests/test_api.py` — every endpoint, with the OpenAI client stubbed: the 503 path, the 400 path, the 502 path, share/snippet round-trip, register → login → `/me`, duplicate and weak-password rejection, that protected routes really are protected, and that the review service imports without a key and fails with a 503 only when called.
+
+The suite is hermetic: `conftest.py` removes the throwaway SQLite file at the start of
+every session, so running `pytest` twice in a row gives the same result.
 
 CI runs the suite on Python 3.11 and builds the Docker image.
 

@@ -151,3 +151,20 @@ def test_login_rejects_bad_password(client):
 def test_review_endpoints_require_auth(client):
     assert client.get("/api/review/history").status_code == 401
     assert client.get("/api/review/stats").status_code == 401
+
+
+def test_review_service_is_lazy_without_a_key(monkeypatch):
+    """Importing the review service must not need a key; calling it returns 503."""
+    from fastapi import HTTPException
+
+    from app.services import ai_service
+
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.setattr(ai_service.settings, "OPENAI_API_KEY", "")
+    monkeypatch.setattr(ai_service, "_client", None)
+
+    assert ai_service.get_client  # imported without constructing a client
+    with pytest.raises(HTTPException) as excinfo:
+        ai_service.get_client()
+    assert excinfo.value.status_code == 503
+    assert "OPENAI_API_KEY" in excinfo.value.detail
